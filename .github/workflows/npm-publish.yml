@@ -144,7 +144,8 @@ jobs:
           path: dist/
 
       - name: Publish to npm (with automatic provenance)
-        run: npm publish --access public
+        run: npm publish --access public --ignore-scripts
+        # --ignore-scripts: Skip prepack lifecycle hook since dist is already built
         # Note: No --provenance flag needed - automatically generated with Trusted Publishing
         # No NPM_TOKEN needed - authentication via OIDC
 
