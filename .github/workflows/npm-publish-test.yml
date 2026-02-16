@@ -79,3 +79,5 @@ jobs:
           echo "Verifying $PACKAGE_NAME@$PACKAGE_VERSION"
           sleep 10  # Wait for npm registry to propagate
           npm view $PACKAGE_NAME@$PACKAGE_VERSION
+
+# Test trigger
