@@ -1,0 +1,81 @@
+name: NPM Publish Test
+
+on:
+  push:
+    branches:
+      - fix-publish
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (skip actual publish)"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  # Fast build job - skip validation steps
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Setup Node environment
+        uses: ./.github/actions/setup-node-env
+        with:
+          install-bun: "false"
+
+      - name: Build package
+        run: pnpm build
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-build
+          path: dist/
+          retention-days: 1
+
+  # Test publish step
+  publish:
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && !inputs.dry_run
+    permissions:
+      id-token: write # Required for OIDC authentication with npm
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Setup Node environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.x" # Node 24.x or later recommended for Trusted Publishing
+          registry-url: "https://registry.npmjs.org" # Required for OIDC
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-build
+          path: dist/
+
+      - name: Publish to npm (with automatic provenance)
+        run: npm publish --access public --ignore-scripts
+        # --ignore-scripts: Skip prepack lifecycle hook since dist is already built
+        # Note: No --provenance flag needed - automatically generated with Trusted Publishing
+        # No NPM_TOKEN needed - authentication via OIDC
+
+      - name: Verify published package
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          echo "Verifying $PACKAGE_NAME@$PACKAGE_VERSION"
+          sleep 10  # Wait for npm registry to propagate
+          npm view $PACKAGE_NAME@$PACKAGE_VERSION
